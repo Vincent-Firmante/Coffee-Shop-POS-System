@@ -1,3 +1,7 @@
+Firmante, Vincent C
+Alicaway, Keisha M.
+Baon, John Aeron I.
+
 Coffee Shop POS System
 
 A simple desktop Point of Sale (POS) application for a coffee shop, built with Python and PyQt5.
