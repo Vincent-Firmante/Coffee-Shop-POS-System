@@ -1,6 +1,6 @@
 Firmante, Vincent C
-Alicaway, Keisha M.
-Baon, John Aeron I.
+: Alicaway, Keisha M.
+: Baon, John Aeron I.
 
 Coffee Shop POS System
 
