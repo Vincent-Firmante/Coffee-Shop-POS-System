@@ -120,7 +120,7 @@ def create_input(placeholder, is_password=False):
     return line_edit
 
 class LoginDialog(QDialog):
-    login_attempted = pyqtSignal(str, str)  # Signals username and password
+    login_attempted = pyqtSignal(str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -153,7 +153,7 @@ class LoginDialog(QDialog):
         subtitle_label.setAlignment(Qt.AlignCenter)
         form_layout.addWidget(subtitle_label)
 
-        self.username_input = create_input("Username (manager/user)")
+        self.username_input = create_input("Username (manager/cashier)")
         form_layout.addWidget(self.username_input)
 
         self.password_input = create_input("Password", is_password=True)
@@ -163,9 +163,6 @@ class LoginDialog(QDialog):
         self.login_button.clicked.connect(self._emit_login_signal)
         form_layout.addWidget(self.login_button)
 
-        forgot_btn = create_button("Forgot Password?", "secondary")
-        forgot_btn.clicked.connect(self.show_forgot_password_prompt)
-        form_layout.addWidget(forgot_btn)
 
         self.password_input.returnPressed.connect(self._emit_login_signal)
 
@@ -181,12 +178,6 @@ class LoginDialog(QDialog):
     def show_login_error(self, message):
         QMessageBox.critical(self, "Login Failed", message)
 
-    def show_forgot_password_prompt(self):
-        QMessageBox.information(self, "Forgot Password",
-                                "For a real application, a recovery link would be sent via email or SMS. \n\n"
-                                "Since this is a local demo, please refer to the default credentials: \n"
-                                "Manager: 'manager' / 'admin123'\n"
-                                "Customer: 'Cashier' / 'password'")
 
 
 class CoffeeShopPOSView(QMainWindow):
@@ -199,8 +190,10 @@ class CoffeeShopPOSView(QMainWindow):
     process_payment_requested = pyqtSignal()
     eod_action_requested = pyqtSignal()
     clear_sales_requested = pyqtSignal()
+    retrieve_archived_requested = pyqtSignal()
     password_change_requested = pyqtSignal(str, str, str, str)
     tab_changed = pyqtSignal(str)
+    menu_filter_requested = pyqtSignal(str)
 
     def __init__(self, initial_role):
         super().__init__()
@@ -278,9 +271,25 @@ class CoffeeShopPOSView(QMainWindow):
         self.menu_grid_widget = QWidget()
         self.menu_grid_layout = QGridLayout(self.menu_grid_widget)
         menu_box = QVBoxLayout()
-        menu_box.addWidget(create_label("      ☕       Today's Menu", 16, True))
+
+        header_h = QHBoxLayout()
+        title_label = create_label("      ☕       Today's Menu", 16, True)
+        title_label.setAlignment(Qt.AlignCenter)
+        header_h.addStretch(1)
+        header_h.addWidget(title_label)
+        header_h.addStretch(1)
+
+        self.pos_category_combo = QComboBox()
+        self.pos_category_combo.setFont(QFont("Inter", 10))
+        self.pos_category_combo.addItem("All")
+        self.pos_category_combo.setStyleSheet("padding: 5px;")
+        header_h.addWidget(self.pos_category_combo, 0, Qt.AlignRight)
+
+        menu_box.addLayout(header_h)
         menu_box.addWidget(self.menu_grid_widget)
         menu_box.setStretch(1, 1)
+        
+        self.pos_category_combo.currentIndexChanged.connect(lambda _: self._emit_menu_filter())
 
         self.order_table = QTableWidget()
         self.order_table.setColumnCount(4)
@@ -312,7 +321,6 @@ class CoffeeShopPOSView(QMainWindow):
             QWidget {{ background-color: #FFFFFF; border: 2px solid #D2B48C; border-radius: 12px; padding: 10px; margin: 5px;}}
             QWidget:hover {{ border-color: #A0522D;}}
         """)
-
         widget.setProperty('item_id', item_id)
         widget.mousePressEvent = lambda event: self.order_item_clicked.emit(item_id)
 
@@ -344,6 +352,29 @@ class CoffeeShopPOSView(QMainWindow):
             if col >= max_cols:
                 col = 0
                 row += 1
+
+    def update_pos_filters(self, categories):
+        try:
+            current = self.pos_category_combo.currentText() if hasattr(self, 'pos_category_combo') else 'All'
+            self.pos_category_combo.blockSignals(True)
+            self.pos_category_combo.clear()
+            self.pos_category_combo.addItem('All')
+            for c in categories:
+                self.pos_category_combo.addItem(c)
+            idx = self.pos_category_combo.findText(current)
+            if idx >= 0:
+                self.pos_category_combo.setCurrentIndex(idx)
+            self.pos_category_combo.blockSignals(False)
+        except Exception:
+            pass
+
+    def _emit_menu_filter(self):
+        cat = ''
+        if hasattr(self, 'pos_category_combo'):
+            sel = self.pos_category_combo.currentText()
+            if sel and sel != 'All':
+                cat = sel
+        self.menu_filter_requested.emit(cat)
 
     def update_order_summary(self, order_data, total):
         self.order_table.setRowCount(0)
@@ -546,6 +577,10 @@ class CoffeeShopPOSView(QMainWindow):
         eod_btn.clicked.connect(self.eod_action_requested.emit)
         main_layout.addWidget(eod_btn)
 
+        retrieve_btn = create_button("      🔁       Retrieve Cleared EOD Records", "secondary")
+        retrieve_btn.clicked.connect(self._confirm_retrieve_archived)
+        main_layout.addWidget(retrieve_btn)
+
         main_layout.addWidget(create_label("      📄       Past End of Day Records", 14, True))
         self.past_eod_table = QTableWidget()
         self.past_eod_table.setColumnCount(4)
@@ -598,6 +633,13 @@ class CoffeeShopPOSView(QMainWindow):
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             self.clear_sales_requested.emit()
+
+    def _confirm_retrieve_archived(self):
+        reply = QMessageBox.question(self, 'Retrieve Archived Records',
+                                     "Restore archived End-Of-Day summaries that were previously archived before clearing?",
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            self.retrieve_archived_requested.emit()
 
     def _setup_settings_tab(self):
         main_layout = QVBoxLayout(self.settings_widget)
