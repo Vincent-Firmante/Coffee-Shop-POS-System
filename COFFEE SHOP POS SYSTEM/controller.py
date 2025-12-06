@@ -39,6 +39,11 @@ class AppController:
         self.main_window.process_payment_requested.connect(self.handle_process_payment)
         self.main_window.eod_action_requested.connect(self.handle_save_eod)
         self.main_window.clear_sales_requested.connect(self.handle_clear_sales_data)
+        self.main_window.retrieve_archived_requested.connect(self.handle_restore_archived)
+        try:
+            self.main_window.menu_filter_requested.connect(self.handle_menu_filter)
+        except Exception:
+            pass
         self.main_window.password_change_requested.connect(self.handle_change_password)
         self.main_window.tab_changed.connect(self.handle_tab_change)
 
@@ -47,7 +52,6 @@ class AppController:
         self.main_window.menu_item_updated.connect(self.handle_update_menu_item)
         self.main_window.menu_item_deleted.connect(self.handle_delete_menu_item)
 
-        # --- Initial Load ---
         self.refresh_all_data()
         self.main_window.show()
 
@@ -59,7 +63,14 @@ class AppController:
         if self.model.user_role == 'Manager':
             self.main_window.update_admin_menu_table(menu_items)
             self.main_window.update_category_combo(self.model.get_menu_categories())
-            self.main_window.update_password_combo(sorted(self.model.credentials.keys()))
+            try:
+                self.main_window.update_password_combo(sorted(self.model.get_usernames()))
+            except Exception:
+                self.main_window.update_password_combo([])
+        try:
+            self.main_window.update_pos_filters(self.model.get_menu_categories())
+        except Exception:
+            pass
 
     def handle_tab_change(self, tab_name):
         if "End of Day" in tab_name:
@@ -89,11 +100,13 @@ class AppController:
             self.main_window.show_warning("Warning", "The order is empty.")
             return
 
-        success, result = self.model.process_order()
+        success, total, receipt_uuid = self.model.process_order()
 
         if success:
-            total = result
-            self.main_window.show_info("Success", f"Payment processed successfully!\nTotal: ₱{total:.2f}")
+            msg = f"Payment processed successfully!\nTotal: ₱{total:.2f}"
+            if receipt_uuid:
+                msg += f"\nReceipt saved (ID): {receipt_uuid}"
+            self.main_window.show_info("Success", msg)
             self.refresh_all_data()
         else:
             self.main_window.show_error("Error", "Failed to record sale. Check stock levels or database connection.")
@@ -158,7 +171,7 @@ class AppController:
             self.main_window.show_error("Error",
                                         f"EOD Summary for {saved_summary['date']} is **already saved**. Cannot save twice for the same day.")
 
-        self.refresh_all_data()  # Refreshes menu (stock), POS, and EOD tab content
+        self.refresh_all_data()
         self.handle_eod_refresh()
         self.handle_report_refresh()
 
@@ -180,5 +193,27 @@ class AppController:
             self.main_window.clear_password_fields()
         elif status == "Incorrect old password":
             self.main_window.show_error("Error", "The Old Password entered is incorrect.")
-        else:  # Covers "User not found" or other errors
+        else:
             self.main_window.show_error("Error", f"Failed to change password: {status}")
+
+    def handle_restore_archived(self):
+        restored_count = self.model.restore_archived_eod_summaries()
+        if restored_count is None:
+            self.main_window.show_error("Error", "Failed to restore archived records.")
+            return
+
+        self.main_window.show_info("Restore Complete", f"Restored EOD summaries. Current EOD records count: {restored_count}")
+        self.refresh_all_data()
+        self.handle_eod_refresh()
+        self.handle_report_refresh()
+
+    def handle_menu_filter(self, category):
+        try:
+            all_items = self.model.get_menu_items()
+            if not category:
+                self.main_window.update_menu_display(all_items)
+                return
+            filtered = [item for item in all_items if item[4].lower().strip() == category.lower().strip()]
+            self.main_window.update_menu_display(filtered)
+        except Exception:
+            self.main_window.update_menu_display(self.model.get_menu_items())
