@@ -102,6 +102,38 @@ class DatabaseManager:
                                 TEXT
                             )
                             """)
+        self.cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS eod_summary_archive
+                            (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                report_date TEXT NOT NULL UNIQUE,
+                                total_revenue REAL NOT NULL,
+                                top_items_json TEXT,
+                                low_stock_json TEXT,
+                                archived_at TEXT NOT NULL
+                            )
+                            """)
+        self.cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS users
+                            (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                username TEXT NOT NULL UNIQUE,
+                                password TEXT NOT NULL,
+                                role TEXT NOT NULL,
+                                created_at TEXT NOT NULL
+                            )
+                            """)
+        self.cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS receipts
+                            (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                receipt_uuid TEXT NOT NULL UNIQUE,
+                                sale_date TEXT NOT NULL,
+                                total REAL NOT NULL,
+                                items_json TEXT NOT NULL,
+                                created_at TEXT NOT NULL
+                            )
+                            """)
         self.conn.commit()
         self._seed_data()
 
@@ -110,18 +142,36 @@ class DatabaseManager:
             self.cursor.execute("SELECT COUNT(*) FROM menu")
             if self.cursor.fetchone()[0] == 0:
                 initial_items = [
-                    ('Brewed Coffee', 75.00, 100, 'Coffee'),
+                    ('Espresso', 90.00, 100, 'Coffee'),
                     ('Latte', 80.00, 150, 'Coffee'),
-                    ('Frappuccino', 180.00, 120, 'Coffee'),
-                    ('Mocha', 95.00, 90, 'Coffee'),
-                    ('Croissant', 60.00, 50, 'Pastry'),
-                    ('Blueberry Muffin',170.00, 60, 'Pastry'),
-                    ('Iced Tea', 105.00, 80, 'Beverage'),
-                    ('Fries', 40.00, 30, 'Food'),
+                    ('Cappuccino', 100.00, 120, 'Coffee'),
+                    ('Mocha', 110.00, 90, 'Coffee'),
+                    ('Croissant', 70.00, 50, 'Pastry'),
+                    ('Blueberry Muffin', 70.00, 60, 'Pastry'),
+                    ('Iced Tea', 60.00, 80, 'Beverage'),
+                    ('Tuna Sandwich', 50.00, 30, 'Food'),
                 ]
                 self.cursor.executemany("INSERT INTO menu (name, price, stock, category) VALUES (?, ?, ?, ?)",
                                         initial_items)
                 self.conn.commit()
+        except sqlite3.Error as e:
+            print(f"Error seeding data: {e}")
+
+        try:
+            self.cursor.execute("SELECT COUNT(*) FROM users")
+            if self.cursor.fetchone()[0] == 0:
+                default_users = [
+                    ('manager', 'admin123', 'Manager'),
+                    ('cashier', 'password', 'Cashier')
+                ]
+                for u, p, r in default_users:
+                    try:
+                        self.cursor.execute("INSERT INTO users (username, password, role, created_at) VALUES (?, ?, ?, datetime('now'))", (u, p, r))
+                    except sqlite3.IntegrityError:
+                        pass
+                self.conn.commit()
+        except sqlite3.Error as e:
+            print(f"Error seeding users: {e}")
         except sqlite3.Error as e:
             print(f"Error seeding data: {e}")
 
@@ -165,6 +215,49 @@ class DatabaseManager:
         self.cursor.execute("SELECT name, price, category FROM menu WHERE id = ?", (item_id,))
         return self.cursor.fetchone()
 
+    def create_user(self, username, password, role='Cashier'):
+        try:
+            self.cursor.execute("INSERT INTO users (username, password, role, created_at) VALUES (?, ?, ?, datetime('now'))", (username, password, role))
+            self.conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+        except sqlite3.Error:
+            return False
+
+    def get_user(self, username):
+        try:
+            self.cursor.execute("SELECT username, password, role FROM users WHERE username = ?", (username,))
+            row = self.cursor.fetchone()
+            if row:
+                return {'username': row[0], 'password': row[1], 'role': row[2]}
+            return None
+        except sqlite3.Error:
+            return None
+
+    def list_users(self):
+        try:
+            self.cursor.execute("SELECT username, role FROM users ORDER BY username")
+            return [{'username': r[0], 'role': r[1]} for r in self.cursor.fetchall()]
+        except sqlite3.Error:
+            return []
+
+    def update_user_password(self, username, new_password):
+        try:
+            self.cursor.execute("UPDATE users SET password = ? WHERE username = ?", (new_password, username))
+            self.conn.commit()
+            return self.cursor.rowcount > 0
+        except sqlite3.Error:
+            return False
+
+    def delete_user(self, username):
+        try:
+            self.cursor.execute("DELETE FROM users WHERE username = ?", (username,))
+            self.conn.commit()
+            return self.cursor.rowcount > 0
+        except sqlite3.Error:
+            return False
+
     def record_sale(self, order_items, sale_date):
         try:
             for item in order_items:
@@ -184,6 +277,37 @@ class DatabaseManager:
         except sqlite3.Error:
             self.conn.rollback()
             return False
+
+    def save_receipt(self, receipt_uuid, sale_date, total, items):
+        """Save a receipt record. `items` should be JSON-serializable (list/dict). Returns inserted id or None."""
+        try:
+            items_json = json.dumps(items)
+            self.cursor.execute(
+                "INSERT INTO receipts (receipt_uuid, sale_date, total, items_json, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+                (receipt_uuid, sale_date, total, items_json)
+            )
+            self.conn.commit()
+            return self.cursor.lastrowid
+        except sqlite3.IntegrityError:
+            return None
+        except sqlite3.Error:
+            return None
+
+    def get_receipt(self, receipt_uuid):
+        try:
+            self.cursor.execute("SELECT receipt_uuid, sale_date, total, items_json, created_at FROM receipts WHERE receipt_uuid = ?", (receipt_uuid,))
+            row = self.cursor.fetchone()
+            if not row:
+                return None
+            return {
+                'receipt_uuid': row[0],
+                'sale_date': row[1],
+                'total': row[2],
+                'items': json.loads(row[3]),
+                'created_at': row[4]
+            }
+        except sqlite3.Error:
+            return None
 
     def get_sales_data_for_report(self, days_back=30):
         date_limit = (datetime.datetime.now() - datetime.timedelta(days=days_back)).strftime('%Y-%m-%d %H:%M:%S')
@@ -229,6 +353,13 @@ class DatabaseManager:
                 "INSERT INTO eod_summary (report_date, total_revenue, top_items_json, low_stock_json) VALUES (?, ?, ?, ?)",
                 (summary_data['date'], summary_data['total_revenue'], top_items_json, low_stock_json)
             )
+            try:
+                self.cursor.execute(
+                    "INSERT OR IGNORE INTO eod_summary_archive (report_date, total_revenue, top_items_json, low_stock_json, archived_at) VALUES (?, ?, ?, ?, datetime('now'))",
+                    (summary_data['date'], summary_data['total_revenue'], top_items_json, low_stock_json)
+                )
+            except Exception:
+                pass
             self.conn.commit()
             return True
         except sqlite3.IntegrityError:
@@ -254,9 +385,43 @@ class DatabaseManager:
 
     def clear_all_sales_data(self):
         try:
+            try:
+                self.cursor.execute(
+                    "INSERT OR IGNORE INTO eod_summary_archive (report_date, total_revenue, top_items_json, low_stock_json, archived_at) SELECT report_date, total_revenue, top_items_json, low_stock_json, datetime('now') FROM eod_summary"
+                )
+            except Exception:
+                pass
+
             self.cursor.execute("DELETE FROM sales")
             self.cursor.execute("DELETE FROM eod_summary")
             self.conn.commit()
             return True
         except sqlite3.Error:
             return False
+
+    def get_archived_eod_records(self):
+        self.cursor.execute(
+            "SELECT report_date, total_revenue, top_items_json, low_stock_json, archived_at FROM eod_summary_archive ORDER BY archived_at DESC"
+        )
+        records = self.cursor.fetchall()
+        parsed = []
+        for date, revenue, top_json, low_json, archived_at in records:
+            parsed.append({
+                'date': date,
+                'revenue': revenue,
+                'top_items': json.loads(top_json),
+                'low_stock': json.loads(low_json),
+                'archived_at': archived_at
+            })
+        return parsed
+
+    def restore_all_archived_eod_records(self):
+        try:
+            self.cursor.execute(
+                "INSERT OR IGNORE INTO eod_summary (report_date, total_revenue, top_items_json, low_stock_json) SELECT report_date, total_revenue, top_items_json, low_stock_json FROM eod_summary_archive"
+            )
+            self.conn.commit()
+            self.cursor.execute("SELECT COUNT(*) FROM eod_summary")
+            return self.cursor.fetchone()[0]
+        except sqlite3.Error:
+            return 0
