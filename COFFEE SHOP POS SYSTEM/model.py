@@ -5,11 +5,7 @@ from database import DatabaseManager
 class AppModel:
     def __init__(self):
         self.db = DatabaseManager()
-
-        self.credentials = {
-            'manager': {'password': 'admin123', 'role': 'Manager'},
-            'Cashier': {'password': 'password', 'role': 'Cashier'}
-        }
+        self.credentials = {}
         self.user_role = None
         self.current_pos_date = datetime.date.today()
         self.current_order = {}
@@ -17,29 +13,37 @@ class AppModel:
     def authenticate(self, username, password):
         username = username.lower().strip()
         password = password.strip()
-        if username in self.credentials:
-            user_data = self.credentials[username]
-            if user_data['password'] == password:
-                self.user_role = user_data['role']
-                return True
+        user = self.db.get_user(username)
+        if user and user.get('password') == password:
+            self.user_role = user.get('role')
+            return True
         self.user_role = None
         return False
 
     def update_password(self, username, old_password, new_password):
-
         username = username.lower().strip()
-
-        if username not in self.credentials:
+        user = self.db.get_user(username)
+        if not user:
             return "User not found"
 
-        if self.credentials[username]['password'] != old_password:
+        if user.get('password') != old_password:
             return "Incorrect old password"
 
         if old_password == new_password:
             return "New password cannot be the same as old password"
 
-        self.credentials[username]['password'] = new_password
-        return "Success"
+        ok = self.db.update_user_password(username, new_password)
+        return "Success" if ok else "Failed to update password"
+
+    def get_usernames(self):
+        users = self.db.list_users()
+        return [u['username'] for u in users]
+
+    def create_user(self, username, password, role='Cashier'):
+        return self.db.create_user(username, password, role)
+
+    def delete_user(self, username):
+        return self.db.delete_user(username)
 
     def add_item_to_order(self, item_id):
         item_details = self.db.get_item_details(item_id)
@@ -61,7 +65,7 @@ class AppModel:
 
     def process_order(self):
         if not self.current_order:
-            return False
+            return False, 0, None
 
         order_list = list(self.current_order.values())
         sale_date = self.current_pos_date.strftime('%Y-%m-%d') + datetime.datetime.now().strftime(' %H:%M:%S')
@@ -70,9 +74,18 @@ class AppModel:
 
         if success:
             total = self.calculate_order_total()
-            self.current_order = {}  # Clear the order on success
-            return True, total
-        return False, 0
+            try:
+                import uuid
+                receipt_uuid = uuid.uuid4().hex
+                saved_id = self.db.save_receipt(receipt_uuid, sale_date, total, order_list)
+                receipt_ref = receipt_uuid if saved_id else None
+            except Exception:
+                receipt_ref = None
+
+            self.current_order = {}
+            return True, total, receipt_ref
+
+        return False, 0, None
 
     def clear_order(self):
         self.current_order = {}
@@ -101,6 +114,15 @@ class AppModel:
 
     def get_historical_eod_records(self):
         return self.db.get_past_eod_records()
+
+    def get_archived_eod_records(self):
+        return self.db.get_archived_eod_records()
+
+    def restore_archived_eod_summaries(self):
+        try:
+            return self.db.restore_all_archived_eod_records()
+        except Exception:
+            return None
 
     def create_item(self, name, price, stock, category):
         return self.db.create_menu_item(name, price, stock, category)
