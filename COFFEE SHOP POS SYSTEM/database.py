@@ -102,7 +102,6 @@ class DatabaseManager:
                                 TEXT
                             )
                             """)
-        # Archive table to keep backups of EOD summaries (in case of accidental clear)
         self.cursor.execute("""
                             CREATE TABLE IF NOT EXISTS eod_summary_archive
                             (
@@ -114,7 +113,6 @@ class DatabaseManager:
                                 archived_at TEXT NOT NULL
                             )
                             """)
-        # Users table for storing credentials
         self.cursor.execute("""
                             CREATE TABLE IF NOT EXISTS users
                             (
@@ -125,7 +123,6 @@ class DatabaseManager:
                                 created_at TEXT NOT NULL
                             )
                             """)
-        # Receipts table for storing generated receipts per order
         self.cursor.execute("""
                             CREATE TABLE IF NOT EXISTS receipts
                             (
@@ -145,7 +142,6 @@ class DatabaseManager:
             self.cursor.execute("SELECT COUNT(*) FROM menu")
             if self.cursor.fetchone()[0] == 0:
                 initial_items = [
-                    # Coffee (9 items)
                     ('Espresso', 90.00, 100, 'Coffee'),
                     ('Latte', 80.00, 150, 'Coffee'),
                     ('Cappuccino', 100.00, 120, 'Coffee'),
@@ -156,7 +152,6 @@ class DatabaseManager:
                     ('Affogato', 120.00, 70, 'Coffee'),
                     ('Pour Over', 130.00, 60, 'Coffee'),
 
-                    # Pastry (9 items)
                     ('Croissant', 70.00, 50, 'Pastry'),
                     ('Blueberry Muffin', 70.00, 60, 'Pastry'),
                     ('Chocolate Chip Cookie', 50.00, 90, 'Pastry'),
@@ -167,7 +162,6 @@ class DatabaseManager:
                     ('Apple Turnover', 75.00, 40, 'Pastry'),
                     ('Almond Biscotti', 40.00, 75, 'Pastry'),
 
-                    # Beverage (9 items)
                     ('Iced Tea', 60.00, 80, 'Beverage'),
                     ('Orange Juice', 70.00, 70, 'Beverage'),
                     ('Lemonade', 75.00, 90, 'Beverage'),
@@ -177,8 +171,7 @@ class DatabaseManager:
                     ('Mango Smoothie', 140.00, 40, 'Beverage'),
                     ('Strawberry Milkshake', 160.00, 30, 'Beverage'),
                     ('Caramel Frappe', 155.00, 50, 'Beverage'),
-
-                    # Food (9 items)
+                    
                     ('Tuna Sandwich', 50.00, 30, 'Food'),
                     ('Chicken Pesto Sandwich', 180.00, 25, 'Food'),
                     ('Caesar Salad', 190.00, 20, 'Food'),
@@ -195,7 +188,6 @@ class DatabaseManager:
         except sqlite3.Error as e:
             print(f"Error seeding data: {e}")
 
-        # Seed default users if users table is empty
         try:
             self.cursor.execute("SELECT COUNT(*) FROM users")
             if self.cursor.fetchone()[0] == 0:
@@ -402,7 +394,6 @@ class DatabaseManager:
                 "INSERT INTO eod_summary (report_date, total_revenue, top_items_json, low_stock_json) VALUES (?, ?, ?, ?)",
                 (summary_data['date'], summary_data['total_revenue'], top_items_json, low_stock_json)
             )
-            # Also insert into archive as a backup (ignore if already present)
             try:
                 self.cursor.execute(
                     "INSERT OR IGNORE INTO eod_summary_archive (report_date, total_revenue, top_items_json, low_stock_json, archived_at) VALUES (?, ?, ?, ?, datetime('now'))",
@@ -435,7 +426,6 @@ class DatabaseManager:
 
     def clear_all_sales_data(self):
         try:
-            # Archive current EOD summaries before clearing so they can be restored if needed
             try:
                 self.cursor.execute(
                     "INSERT OR IGNORE INTO eod_summary_archive (report_date, total_revenue, top_items_json, low_stock_json, archived_at) SELECT report_date, total_revenue, top_items_json, low_stock_json, datetime('now') FROM eod_summary"
@@ -468,12 +458,10 @@ class DatabaseManager:
 
     def restore_all_archived_eod_records(self):
         try:
-            # Move archived records back into eod_summary if they don't already exist
             self.cursor.execute(
                 "INSERT OR IGNORE INTO eod_summary (report_date, total_revenue, top_items_json, low_stock_json) SELECT report_date, total_revenue, top_items_json, low_stock_json FROM eod_summary_archive"
             )
             self.conn.commit()
-            # Return number restored (approximate by counting rows now present)
             self.cursor.execute("SELECT COUNT(*) FROM eod_summary")
             return self.cursor.fetchone()[0]
         except sqlite3.Error:
@@ -504,4 +492,5 @@ class DatabaseManager:
                 })
             return results
         except sqlite3.Error:
+
             return []
