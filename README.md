@@ -62,9 +62,9 @@ The application uses SQLite3 (`coffee_pos.db`) for persistent storage:
 ### Cashier
 1. Login with cashier account
 2. Select menu categories and add items to order
-3. Adjust quantities and remove items as needed
+3. Adjust and remove items as needed
 4. Process payment to complete the sale
-5. View transaction history (if enabled)
+5. View transaction history
 
 ### Manager
 1. Login with manager account
