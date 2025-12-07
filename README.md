@@ -38,19 +38,6 @@ python main.py
 | manager  | admin123  | Manager |
 | cashier  | password  | Cashier |
 
-### Manager
-- Login with manager credentials
-- Manage menu items (add, update, delete)
-- View sales reports and EOD summaries
-- Manage user passwords and cashier permissions
-- Access all tabs: POS, Transaction History, Menu Management, Sales Reports, End of Day, Settings
-
-### Cashier
-- Login with cashier credentials
-- Use POS to process orders
-- View transaction history (if permitted)
-- Some tabs may be disabled based on manager-assigned permissions
-
 ## Database
 
 The application uses SQLite3 (`coffee_pos.db`) for persistent storage:
