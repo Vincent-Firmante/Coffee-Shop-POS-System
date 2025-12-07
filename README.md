@@ -33,13 +33,6 @@ Install tools:
 
 pip install PyQt5 pandas matplotlib
 
-Usage
-
-Launch:
-
-python coffee.py
-
-
 Database: The app automatically creates coffee_pos.db for storage.
 
 Start: Use the Products tab to set up your menu, then the Sales tab to take orders.
