@@ -4,93 +4,56 @@ Firmante, Vincent C
 
 # Coffee Shop POS System
 
-A simple Point-of-Sale (POS) system built with Python and PyQt5 for managing coffee shop operations.
+A desktop Point of Sale (POS) system for managing coffee shop operations, built with Python and PyQt5.
 
-#Features
+## Features
 
-- **Point of Sale**: Add items to orders and process payments
-- **Menu Management**: Create, update, and delete menu items (Manager only)
-- **Transaction History**: View all sales receipts
-- **Sales Reports**: Charts showing top items, revenue by category, and daily trends (Manager only)
-- **End-of-Day**: Generate daily summaries and manage EOD records (Manager only)
-- **User Management**: Create users, change passwords, and manage cashier access (Manager only)
-- **Cashier Access Control**: Restrict cashier access to specific features
+- **User Authentication**: Secure login system with role-based access control
+- **Menu Management**: Easy management of menu items and pricing
+- **Order Processing**: Create and process customer orders
+- **Database Management**: SQLite database for persistent data storage
+- **Reporting**: Generate sales and inventory reports using pandas
+- **Password Management**: Secure password update functionality
 
-#Requirements
+## Project Structure
+
+- **main.py** - Entry point for the application
+- **model.py** - Application data model and business logic
+- **view.py** - User interface components (PyQt5)
+- **controller.py** - Event handling and application control
+- **database.py** - Database management and queries
+- **test_all.py** - Unit tests
+- **coffee_pos.db** - SQLite database file (auto-created)
+
+## Requirements
 
 - Python 3.7+
 - PyQt5
 - pandas
-- matplotlib
+- sqlite3 (included with Python)
 
 ## Installation
 
-pip install PyQt5 pandas matplotlib
+1. Install required dependencies:
+pip install PyQt5 pandas
 
-## Running the Application
-
+2. Run the application:
 python main.py
 
-#Default User's
+## Usage
 
-| Username | Password  | Role    |
-|----------|-----------|---------|
-| manager  | admin123  | Manager |
-| cashier  | password  | Cashier |
+1. Launch the application using `python main.py`
+2. Log in with your credentials
+3. Navigate through the interface to manage orders, menu items, and inventory
+4. Generate reports as needed
 
 ## Database
 
-The application uses SQLite3 (`coffee_pos.db`) for persistent storage:
-- `menu` - Menu items and inventory
-- `sales` - Sales transactions
-- `users` - User accounts and permissions
-- `receipts` - Receipt records
-- `eod_summary` - End-of-day summaries
+The application uses SQLite for data persistence. The database file (`coffee_pos.db`) is automatically created on first run with the necessary tables for users, menu items, orders, and inventory.
 
-## Project Structure
+## Notes
 
-├── main.py          # Application entry point
-├── view.py          # UI components
-├── model.py         # Business logic
-├── controller.py    # Event handling
-├── database.py      # Database operations
-├── test_*.py        # Unit tests
-└── README.md        # This file
+- Ensure the pandas library is installed for reporting features to work correctly
+- The application uses the "Inter" font family for the UI
 
-## Workflow
-
-### Cashier
-1. Login with cashier account
-2. Select menu categories and add items to order
-3. Adjust and remove items as needed
-4. Process payment to complete the sale
-5. View transaction history
-
-### Manager
-1. Login with manager account
-2. Navigate to Menu Management to add/update/delete items
-3. Check Sales Reports for performance metrics
-4. Use End of Day to close the day and view summaries
-5. Manage user accounts and permissions in Settings
-
-
-
-Managers can control cashier access to:
-- View Transaction History
-- View Sales Reports
-- View End-of-Day Summaries
-
-Restricted tabs appear disabled and cannot be accessed.
-
-## Testing
-
-Run unit tests:
-
-python -m pytest
-
-Test files:
-- `test_controller.py` - Controller tests
-- `test_view.py` - UI component tests
-- `test_model.py` - Business logic tests
-- `test_database.py` - Database operation tests
 
